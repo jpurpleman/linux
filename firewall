@@ -1,0 +1,47 @@
+*filter
+:INPUT ACCEPT [0:0]
+:FORWARD ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+
+# Block packets with invalid state(s)
+-A INPUT -m state --state INVALID -j DROP
+-A INPUT -p tcp -m tcp --tcp-flags FIN,SYN,RST,PSH,ACK,URG NONE -j DROP
+-A INPUT -p tcp -m tcp ! --tcp-flags FIN,SYN,RST,ACK SYN -m state --state NEW -j DROP
+-A INPUT -p tcp -m tcp --tcp-flags FIN,SYN,RST,PSH,ACK,URG FIN,SYN,RST,PSH,ACK,URG -j DROP
+
+# Allow localhost to access
+-A INPUT -i lo -j ACCEPT
+
+# Allow access to web port(s), open when ready
+# -A INPUT -s 0.0.0.0/0 -p tcp -m tcp --dport 80 -m state --state NEW,ESTABLISHED -j ACCEPT
+# -A INPUT -s 0.0.0.0/0 -p tcp -m tcp --dport 443 -m state --state NEW,ESTABLISHED -j ACCEPT
+
+# Allow ping, ssh, web, mysql to address ( 123.123.123.123 )
+-A INPUT -s 123.123.123.123 -p icmp -m icmp --icmp-type 8/0 -j ACCEPT
+-A INPUT -s 123.123.123.123 -p icmp --icmp-type echo-request -j ACCEPT
+-A INPUT -s 123.123.123.123 -p tcp -m tcp --dport 22 -m state --state NEW,ESTABLISHED -j ACCEPT
+-A INPUT -s 123.123.123.123 -p tcp -m tcp --dport 80 -m state --state NEW,ESTABLISHED -j ACCEPT
+-A INPUT -s 123.123.123.123 -p tcp -m tcp --dport 443 -m state --state NEW,ESTABLISHED -j ACCEPT
+-A INPUT -s 123.123.123.123 -p tcp -m tcp --dport 3306 -m state --state NEW,ESTABLISHED -j ACCEPT
+
+# Allow access to ssh, but limit hit connections within a timeframe - stops brute force attack
+-N SSH_CHECK
+-A INPUT -p tcp --dport 22 -m state --state NEW -j SSH_CHECK
+-A SSH_CHECK -m recent --set --name SSH
+-A SSH_CHECK -m recent --update --seconds 60 --hitcount 4 --name SSH -j DROP
+
+# Block ping
+-A INPUT -p icmp -m icmp --icmp-type any -j DROP
+
+# Keep established connections
+-A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
+
+# Drop everything else
+-A INPUT -j DROP
+
+# Drop outgoing invalid packets
+-A OUTPUT -m state --state INVALID -j DROP
+
+# Allow all packets going out
+-A OUTPUT -j ACCEPT
+COMMIT
